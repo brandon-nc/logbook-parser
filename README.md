@@ -1,5 +1,5 @@
 # logbook-parser
-A little go program to convert units from metric to imperial within Deep and Steep logbook.csv files. 
+This is just a little Go program skydiovers can use to convert units from metric to imperial within Deep and Steep logbook.csv files.
 
 # Compiling
 Compile the program with:
