@@ -18,3 +18,9 @@ Conversions applied:
 - Meters/sec to Miles/hour columns: [ffAvgVSpd ffMaxVSpd cpAvgVSpd cpMaxVSpd]
 > 
 ```
+
+# Samples
+## Before:
+![alt text](https://github.com/brandon-nc/logbook-parser/raw/main/logbook.csv.png "Original CSV")
+## After:
+![alt text](https://github.com/brandon-nc/logbook-parser/raw/main/logbook.xlsx.png "Converted XLSX")
