@@ -19,6 +19,32 @@ const (
 	mpsToMph      = 2.23694     // Meters per Second to Miles per Hour
 )
 
+// Simple converter for HH:MM format (24-hour)
+func convertTimeStringToExcel(timeStr string) float64 {
+	// Split the time string by colon
+	parts := strings.Split(timeStr, ":")
+	if len(parts) != 2 {
+		fmt.Println("Invalid time format, expected HH:MM")
+		return 0
+	}
+
+	// Parse hours and minutes
+	hours, err := strconv.Atoi(parts[0])
+	if err != nil {
+		fmt.Println("Error parsing hours:", err)
+		return 0
+	}
+
+	minutes, err := strconv.Atoi(parts[1])
+	if err != nil {
+		fmt.Println("Error parsing minutes:", err)
+		return 0
+	}
+
+	// Convert to Excel time value (fraction of day)
+	return (float64(hours) + float64(minutes)/60.0) / 24.0
+}
+
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Printf("Usage: %v input.csv output.xlsx\n", filepath.Base(os.Args[0]))
@@ -136,6 +162,13 @@ func main() {
 			}
 
 			// Try to parse as number for numeric columns
+			if colName == "time" {
+				err := xlsx.SetCellValue(sheetName, cell, convertTimeStringToExcel(value))
+				if err != nil {
+					fmt.Printf("Error setting time value for cell %v: %v\n", cell, err)
+				}
+				continue
+			}
 			if colName != "date" && colName != "time" {
 				if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
 					// Format as integer for specific columns
@@ -196,6 +229,14 @@ func main() {
 		}
 	}
 
+	// Define a customer formatter for the time column
+	timeStyle, err := xlsx.NewStyle(&excelize.Style{
+		NumFmt: 18,
+	})
+	if err != nil {
+		fmt.Printf("Error creating time style: %v\n", err)
+	}
+
 	// Define a custom number format for altitude columns
 	// Format with condition: >=1000 shows as "13.5K ft", <1000 shows as "850 ft"
 	altitudeFormatCode := `[>=1000]#,##0.0,"K ft";#,##0" ft"`
@@ -242,6 +283,14 @@ func main() {
 	// Apply custom formats to data columns
 	for rowNum := 2; rowNum < rowIndex; rowNum++ {
 		for i, header := range headers {
+			if header == "time" {
+				cell, _ := excelize.CoordinatesToCellName(i+1, rowNum)
+				err := xlsx.SetCellStyle(sheetName, cell, cell, timeStyle)
+				if err != nil {
+					fmt.Printf("Error setting time style for cell %v: %v\n", cell, err)
+				}
+			}
+
 			// Apply altitude format to altitude columns
 			if header == "exitAlt" || header == "openAlt" {
 				cell, _ := excelize.CoordinatesToCellName(i+1, rowNum)
