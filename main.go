@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -41,8 +42,41 @@ func convertTimeStringToExcel(timeStr string) float64 {
 		return 0
 	}
 
-	// Convert to Excel time value (fraction of day)
+	// Convert to Excel time value (fraction of a day)
 	return (float64(hours) + float64(minutes)/60.0) / 24.0
+}
+
+func convertDateStringToExcel(dateStr string) float64 {
+	// Parse the date string to a time.Time object using YY/MM/DD format
+	layout := "06/01/02" // For YY/MM/DD format (Go's reference date is 2006-01-02)
+	t, err := time.Parse(layout, dateStr)
+	if err != nil {
+		fmt.Println("Error parsing date:", err)
+		return 0
+	}
+
+	// Handle potential year ambiguity (assuming 20xx for simplicity)
+	// This is only needed if you want specific century handling
+
+	// Convert to Excel date value
+	// Excel uses January 1, 1900 as day 1 (serial number 1)
+	baseDate := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	// Calculate days since baseDate
+	duration := t.Sub(baseDate)
+	days := duration.Hours() / 24
+
+	// Add 1 because Excel counts January 1, 1900, as day 1 (not 0)
+	excelDate := days + 1
+
+	// Add 1 more if the date is after February 28, 1900, to account for Excel's leap year bug
+	//goland:noinspection GoSnakeCaseUsage
+	feb28_1900 := time.Date(1900, 2, 28, 0, 0, 0, 0, time.UTC)
+	if t.After(feb28_1900) {
+		excelDate += 1
+	}
+
+	return excelDate
 }
 
 func main() {
@@ -107,7 +141,7 @@ func main() {
 		for i, value := range record {
 			colName := headers[i]
 
-			// Skip if value is empty
+			// Skip if the value is empty
 			if value == "" {
 				continue
 			}
@@ -161,7 +195,7 @@ func main() {
 				"aircraftSecs": true,
 			}
 
-			// Try to parse as number for numeric columns
+			// Try to parse as a number for numeric columns
 			if colName == "time" {
 				err := xlsx.SetCellValue(sheetName, cell, convertTimeStringToExcel(value))
 				if err != nil {
@@ -169,23 +203,29 @@ func main() {
 				}
 				continue
 			}
-			if colName != "date" && colName != "time" {
-				if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
-					// Format as integer for specific columns
-					if integerColumns[colName] {
-						intVal := int(floatVal)
-						err := xlsx.SetCellValue(sheetName, cell, intVal)
-						if err != nil {
-							fmt.Printf("Error setting integer value for cell %v: %v\n", cell, err)
-						}
-					} else {
-						err := xlsx.SetCellValue(sheetName, cell, floatVal)
-						if err != nil {
-							fmt.Printf("Error setting numeric value for cell %v: %v\n", cell, err)
-						}
-					}
-					continue
+			if colName == "date" {
+				err := xlsx.SetCellValue(sheetName, cell, convertDateStringToExcel(value))
+				if err != nil {
+					fmt.Printf("Error setting date value for cell %v: %v\n", cell, err)
 				}
+				continue
+			}
+
+			if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+				// Format as integer for specific columns
+				if integerColumns[colName] {
+					intVal := int(floatVal)
+					err := xlsx.SetCellValue(sheetName, cell, intVal)
+					if err != nil {
+						fmt.Printf("Error setting integer value for cell %v: %v\n", cell, err)
+					}
+				} else {
+					err := xlsx.SetCellValue(sheetName, cell, floatVal)
+					if err != nil {
+						fmt.Printf("Error setting numeric value for cell %v: %v\n", cell, err)
+					}
+				}
+				continue
 			}
 
 			// Set as string if not numeric or if in date/time columns
@@ -229,18 +269,27 @@ func main() {
 		}
 	}
 
-	// Define a customer formatter for the time column
+	// Define a custom formatter for the time column
+	timeFormatCode := "h:mm AM/PM"
 	timeStyle, err := xlsx.NewStyle(&excelize.Style{
-		NumFmt: 18,
+		CustomNumFmt: &timeFormatCode,
 	})
 	if err != nil {
 		fmt.Printf("Error creating time style: %v\n", err)
 	}
 
+	// Define a custom formatter for the date column
+	dateFormatCode := "ddd, mmm d, yyyy"
+	dateStyle, err := xlsx.NewStyle(&excelize.Style{
+		CustomNumFmt: &dateFormatCode,
+	})
+	if err != nil {
+		fmt.Printf("Error creating date style: %v\n", err)
+	}
+
 	// Define a custom number format for altitude columns
 	// Format with condition: >=1000 shows as "13.5K ft", <1000 shows as "850 ft"
 	altitudeFormatCode := `[>=1000]#,##0.0,"K ft";#,##0" ft"`
-	// Create style with custom format
 	altitudeStyle, err := xlsx.NewStyle(&excelize.Style{
 		CustomNumFmt: &altitudeFormatCode,
 	})
@@ -290,6 +339,13 @@ func main() {
 					fmt.Printf("Error setting time style for cell %v: %v\n", cell, err)
 				}
 			}
+			if header == "date" {
+				cell, _ := excelize.CoordinatesToCellName(i+1, rowNum)
+				err := xlsx.SetCellStyle(sheetName, cell, cell, dateStyle)
+				if err != nil {
+					fmt.Printf("Error setting date style for cell %v: %v\n", cell, err)
+				}
+			}
 
 			// Apply altitude format to altitude columns
 			if header == "exitAlt" || header == "openAlt" {
@@ -323,15 +379,15 @@ func main() {
 	for i, header := range headers {
 		colName, _ := excelize.ColumnNumberToName(i + 1)
 
-		// Set appropriate column width based on column type
-		width := 12.0 // Default width
+		// Set a decent default width for columns
+		width := 12.0
 
-		// Adjust width based on header type
+		// Adjust width based on the header type
 		switch header {
 		case "num":
 			width = 8.0
 		case "date":
-			width = 12.0
+			width = 18.0
 		case "time":
 			width = 10.0
 		case "exitAlt", "openAlt":
