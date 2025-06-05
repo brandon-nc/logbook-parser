@@ -315,6 +315,86 @@ func main() {
 		fmt.Printf("Error creating mph style: %v\n", err)
 	}
 
+	// We also need a style for our lowest-value and highest-value conditional formatting
+	redFill, err := xlsx.NewConditionalStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Color: "9A0511",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#FEC7CE"}, // Red background
+			Pattern: 1,
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	greenFill, err := xlsx.NewConditionalStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Color: "09600B",
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#C7EECF"}, // Red background
+			Pattern: 1,
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = xlsx.SetConditionalFormat(sheetName, "D1:D1048576", []excelize.ConditionalFormatOptions{
+		{
+			Type:     "bottom",
+			Criteria: "=",
+			Format:   &redFill,
+			Value:    "1",
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = xlsx.SetConditionalFormat(sheetName, "D1:D1048576", []excelize.ConditionalFormatOptions{
+		{
+			Type:     "top",
+			Criteria: "=",
+			Format:   &greenFill,
+			Value:    "1",
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = xlsx.SetConditionalFormat(sheetName, "F1:F1048576", []excelize.ConditionalFormatOptions{
+		{
+			Type:     "bottom",
+			Criteria: "=",
+			Format:   &redFill,
+			Value:    "1",
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = xlsx.SetConditionalFormat(sheetName, "F1:F1048576", []excelize.ConditionalFormatOptions{
+		{
+			Type:     "top",
+			Criteria: "=",
+			Format:   &greenFill,
+			Value:    "1",
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
 	// Freeze the header row
 	err = xlsx.SetPanes(sheetName, &excelize.Panes{
 		Freeze:      true,
